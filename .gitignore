@@ -25,3 +25,23 @@ replay_pid*
 
 # Kotlin Gradle plugin data, see https://kotlinlang.org/docs/whatsnew20.html#new-directory-for-kotlin-data-in-gradle-projects
 .kotlin/
+
+# --- CallowFellow (ported from Week 5 of AI-Advent-Challenge) ---
+# Amper / Android / Compose artifacts
+build/
+*.apk
+*.aab
+*.so
+.DS_Store
+.idea/
+out/
+# Models are downloaded on first launch, never commit them
+*.gguf
+*.litertlm
+*.tflite
+models/
+# Local release keystore
+release.keystore
+keystore.properties
+# Build logs and adb dumps
+ui*.xml

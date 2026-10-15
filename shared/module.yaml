@@ -1,0 +1,47 @@
+product:
+  type: kmp/lib
+  platforms: [jvm, android]
+
+dependencies:
+  - $compose.foundation: exported
+  - $compose.material3: exported
+  - $libs.material.icons.core: exported
+  - $compose.runtime: exported
+  - $libs.coroutines.core
+  - $libs.serialization.json
+  - $libs.serialization.core
+  # Koog: the DeepSeek cloud path goes via prompt-executor-deepseek-client
+  # (prompt DSL + transport + serialization). Ktor CIO is the default engine
+  # for KoogHttpClient on JVM/Android.
+  # NB: Maven group ai.koog (Gradle notation ai.koog.prompt in the docs),
+  # the deepseek client on Central is beta-only so far (no stable).
+  - $libs.koog.deepseek.client
+  # KoogHttpClient.Factory for the runtime: without this module the default factory
+  # is not found via ServiceLoader and DeepSeek fails with
+  # "No KoogHttpClient.Factory provider found" (verified on device).
+  - $libs.koog.http.ktor
+  - $libs.ktor.client.core
+  - $libs.ktor.client.cio
+  - $libs.okio
+  # Room KMP: runtime and driver are visible to consumers (the DB builder is created
+  # by the platform entry points: MainActivity / desktop main).
+  - $libs.room.runtime: exported
+  - $libs.sqlite.bundled: exported
+
+# Platform runtimes: LiteRT-LM separately for Android (AAR)
+# and for JVM desktop (jar with natives). Shared code never sees them —
+# only src@android / src@jvm actuals.
+dependencies@android:
+  - $libs.litertlm.android
+
+dependencies@jvm:
+  - $libs.litertlm.jvm
+
+settings:
+  compose:
+    enabled: true
+  kotlin:
+    serialization: json
+    ksp:
+      processors:
+        - $libs.room.compiler

@@ -1,0 +1,19 @@
+product: android/app
+
+dependencies:
+  - ../shared
+  - $libs.activity.compose
+
+settings:
+  compose: enabled
+  android:
+    namespace: com.callowfellow
+    applicationId: com.callowfellow
+    # App version mirrors gradle/libs.versions.toml [versions].app / app-code.
+    # Amper settings cannot reference $libs.versions dynamically, so keep
+    # versionName/versionCode in sync manually. Transfer from Week 5 → 0.1.0.
+    versionCode: 1
+    versionName: "0.1.0"
+    minSdk: 24
+  kotlin:
+    serialization: json
