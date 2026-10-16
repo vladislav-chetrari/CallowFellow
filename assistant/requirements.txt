@@ -1,0 +1,2 @@
+# No third-party dependencies: assistant.py uses only stdlib
+# (urllib for the DeepSeek API, subprocess for the MCP server).
