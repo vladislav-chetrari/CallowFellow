@@ -45,3 +45,7 @@ release.keystore
 keystore.properties
 # Build logs and adb dumps
 ui*.xml
+# Python assistant (Week 6, Task 1): stdlib only, no venv needed
+__pycache__/
+*.pyc
+.venv/
