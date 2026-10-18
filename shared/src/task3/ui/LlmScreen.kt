@@ -56,7 +56,7 @@ fun LlmScreen(ui: Task3UiState, send: (Task3Intent) -> Unit) {
             ModelCatalog.ALL.forEach { m ->
                 val downloaded = m.id in ui.downloadedLlm
                 val progress = ui.downloading[m.id]
-                val selected = (ui.llmChoice as? LlmChoice.Local)?.id == m.id
+                val selected = (ui.llmChoice as? LlmChoice.Local)!!.id == m.id
                 Card {
                     Column(Modifier.fillMaxWidth().padding(8.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
