@@ -2,7 +2,7 @@
 
 ## Сводка
 
-**23 теста в 6 классах.** Фреймворк — `kotlin.test` поверх JUnit 5
+**35 тестов в 8 классах.** Фреймворк — `kotlin.test` поверх JUnit 5
 (платформа 6.1.3). Мок-библиотеки не используются: вместо них вручную написанные
 реализации портов.
 
@@ -13,6 +13,8 @@
 | `shared/test@jvm/task3/ModelFileValidationTest.kt` | 3 | проверка размера скачанной модели |
 | `shared/test@jvm/task3/DeleteDeselectTest.kt` | 2 | удаление выбранной модели снимает выбор |
 | `shared/test@jvm/task3/RagStaleNativeTest.kt` | 2 | устаревшая `.so` не роняет приложение |
+| `shared/test@jvm/task3/ChatsTest.kt` | 7 | несколько чатов: миграция, изоляция, удаление, заголовки |
+| `shared/test@jvm/task3/ChatDrawerTest.kt` | 5 | стейт-машина drawer'а в ViewModel |
 | `shared/test@jvm/task2/DbTest.kt` | 2 | Room CRUD и миграция v1→v2 |
 
 ## Запуск
@@ -127,6 +129,35 @@ Android-тестов (instrumented, на устройстве) в проекте
 Тесты — исполняемый регрессионный след для механизма `rethrowIfFatal`
 в `RagRepository`.
 
+### `ChatsTest` (7)
+
+Репозиторий с фейковыми мостами и **настоящей** SQLite во временном каталоге,
+выбрана фейковая локальная модель — `send()` доходит до генерации.
+
+* `migrate1to2KeepsHistoryInFirstChat` — БД схемы v1 (все её таблицы объявлены
+  в тесте: Room сверяет схему целиком), данные, затем текущая схема: переписка
+  стала чатом №1, настройки и документы на месте.
+* `messagesAreIsolatedPerChat` — сообщения не протекают между чатами, а их `id`
+  не пересекаются (иначе сломались бы ключи `LazyColumn`).
+* `clearChatKeepsOtherChats`, `deleteChatRemovesOnlyItsMessages`,
+  `deletingLastChatKeepsOneEmptyChat` — границы операций и инвариант «список чатов
+  никогда не пуст».
+* `firstUserMessageBecomesTitle` — авто-заголовок и переименование.
+* `chatsAreSortedByActivity` — новый чат сверху, активность поднимает чат.
+
+### `ChatDrawerTest` (5)
+
+Тот же репозиторий, но уже `Task3ViewModel`: проверяются интенты и правила
+состояния (`ui.drawerOpen`, `activeChatId`, диалоги переименования и удаления).
+
+* `startsWithOneUntitledChat` — при первом запуске один чат с заголовком «Новый чат».
+* `drawerTogglesAndClosesOnTabChange`, `createChatSelectsItAndClosesDrawer`.
+* `selectSwitchesMessagesAndRenameGoesThroughTheDialog`,
+  `deleteChatGoesThroughConfirmation`.
+
+Здесь же ловится порядок публикации состояния: `activeChatId` обязан появляться
+в UI раньше списка, которому он принадлежит, иначе список мелькает без выделения.
+
 ### `DbTest` (2)
 
 Работает на реальной SQLite (`BundledSQLiteDriver`) в `File.createTempFile`.
@@ -157,7 +188,8 @@ Android-тестов (instrumented, на устройстве) в проекте
   Проверить можно было бы через локальный HTTP-сервер или `MockEngine` Ktor.
 * **Нет тестов на `QueryRouter` для английских вариантов** «thank you», «bye».
 * **Нет тестов на `Task3ViewModel`** — логика вычисления `canChat` / `chatHint`
-  и синхронный guard против параллельного скачивания не проверены.
+  и синхронный guard против параллельного скачивания не проверены
+  (интенты drawer'а покрыты в `ChatDrawerTest`).
 * **Нет тестов на `FactExtractor` для `NAME_STOP`/`PRONOUN_STOP` по отдельности**
   и на лимиты (`maxCount = 3`, `maxLen = 120`).
 * **Нет инструментальных тестов на реальном устройстве** — LiteRT-LM

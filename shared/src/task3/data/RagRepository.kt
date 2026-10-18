@@ -16,10 +16,12 @@ import task2.domain.AiModel
 import task2.domain.ChatMessage
 import task2.domain.EngineStatus
 import task2.llama.LlamaBridge
+import task3.db.ChatEntity
 import task3.db.DocumentEntity
 import task3.db.RagDao
 import task3.db.RagMessageEntity
 import task3.db.SettingEntity
+import task3.domain.ChatSummary
 import task3.domain.DocInfo
 import task3.domain.LlmChoice
 import task3.domain.LlmChoice.Companion.toStored
@@ -101,6 +103,15 @@ class RagRepository(
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
 
+    /** All chats, newest activity first — the drawer list. */
+    private val _chats = MutableStateFlow<List<ChatSummary>>(emptyList())
+    val chats: StateFlow<List<ChatSummary>> = _chats.asStateFlow()
+
+    private val _activeChatId = MutableStateFlow(0L)
+    val activeChatId: StateFlow<Long> = _activeChatId.asStateFlow()
+
+    val activeChat: ChatSummary? get() = _chats.value.firstOrNull { it.id == _activeChatId.value }
+
     private var idSeq = 1L
     private var loadedGenPath: String? = null
     private var loadedEmbPath: String? = null
@@ -121,9 +132,7 @@ class RagRepository(
         _deepSeekKey.value = dao.getSetting(K_DEEPSEEK).orEmpty()
         _preset.value = task3.domain.GenPreset.fromId(dao.getSetting(K_PRESET))
         refreshDownloaded()
-        runCatching {
-            _messages.value = dao.getMessages().map { ChatMessage(idSeq++, mapRole(it.role), it.text) }
-        }
+        runCatching { initChats() }
         refreshDocs()
         // Background loading of already downloaded models (no re-download): chat is ready faster.
         val choice = _llmChoice.value
@@ -484,16 +493,124 @@ class RagRepository(
 
     // --- chat ---
 
+    /**
+     * The chat list is never empty: on a fresh install (and after deleting the last
+     * chat) one untitled chat is created; the v1 history becomes chat 1.
+     */
+    private suspend fun initChats() {
+        if (dao.allChats().isEmpty()) createChatRow()
+        val stored = _activeChatId.value.takeIf { it != 0L && dao.chat(it) != null }
+        val id = stored ?: dao.allChats().first().id
+        // Order matters: the active id must be published before the list it belongs
+        // to, otherwise the UI briefly sees a list with nothing selected.
+        _activeChatId.value = id
+        refreshChats()
+        loadMessages(id)
+        // In-memory ids must not collide with the stored ones: messages of different
+        // chats are keyed by id in the UI (LazyColumn keys).
+        idSeq = (runCatching { dao.maxMessageId() }.getOrNull() ?: 0L) + 1L
+    }
+
+    private suspend fun refreshChats() {
+        _chats.value = runCatching { dao.chatRows() }.getOrDefault(emptyList()).map {
+            ChatSummary(
+                id = it.id,
+                title = it.title,
+                createdAt = it.createdAt,
+                updatedAt = it.updatedAt,
+                messageCount = it.messageCount,
+                lastText = it.lastText,
+            )
+        }
+    }
+
+    private suspend fun loadMessages(chatId: Long) {
+        _messages.value = runCatching { dao.messagesOf(chatId) }.getOrDefault(emptyList())
+            .map { ChatMessage(it.id, mapRole(it.role), it.text) }
+    }
+
+    /** Switch to another chat. Ignored while generating — the answer would land in the wrong chat. */
+    suspend fun selectChat(id: Long) {
+        if (id == _activeChatId.value || dao.chat(id) == null) return
+        if (_llmStatus.value is EngineStatus.Generating) return
+        switchTo(id)
+    }
+
+    /** Creates an empty chat, makes it active, returns its id. */
+    suspend fun createChat(): Long {
+        val id = createChatRow()
+        // Switch before the list refresh: the active id is always a real chat,
+        // the list only lags one emission behind.
+        switchTo(id)
+        refreshChats()
+        return id
+    }
+
+    private suspend fun createChatRow(): Long {
+        val now = nowMillis()
+        return dao.insertChat(ChatEntity(title = "", createdAt = now, updatedAt = now))
+    }
+
+    suspend fun renameChat(id: Long, title: String) {
+        val clean = title.trim()
+        if (clean.isEmpty() || dao.chat(id) == null) return
+        dao.renameChat(id, clean.take(TITLE_MAX))
+        refreshChats()
+    }
+
+    suspend fun deleteChat(id: Long) {
+        if (_llmStatus.value is EngineStatus.Generating) return
+        runCatching { dao.deleteChat(id) }
+        val remaining = runCatching { dao.allChats() }.getOrDefault(emptyList())
+        // The delete may have failed: better to keep the chat than to select a missing one.
+        if (remaining.any { it.id == id }) {
+            refreshChats()
+            return
+        }
+        if (_activeChatId.value != id) {
+            refreshChats()
+            return
+        }
+        if (remaining.isEmpty()) {
+            createChat()
+        } else {
+            switchTo(remaining.first().id)
+            refreshChats()
+        }
+    }
+
+    /** Messages first, then the id: the UI never shows a chat with another chat's history. */
+    private suspend fun switchTo(id: Long) {
+        loadMessages(id)
+        _activeChatId.value = id
+    }
+
+    /** The first message names the chat; after that the title belongs to the user. */
+    private suspend fun autoTitleIfUntitled(chatId: Long, prompt: String) {
+        val chat = runCatching { dao.chat(chatId) }.getOrNull() ?: return
+        if (chat.title.isNotBlank()) return
+        dao.renameChat(chatId, prompt.take(TITLE_MAX))
+    }
+
     suspend fun send(prompt: String) {
         val clean = prompt.trim()
         if (clean.isEmpty() || _llmStatus.value is EngineStatus.Generating) return
         val choice = _llmChoice.value ?: return
+        val chatId = _activeChatId.value
 
         val userMsg = ChatMessage(idSeq++, ChatMessage.Role.USER, clean)
         val draftId = idSeq++
         _messages.update { it + userMsg + ChatMessage(draftId, ChatMessage.Role.ASSISTANT, "") }
         runCatching {
-            dao.insertMessage(task3.db.RagMessageEntity(role = "USER", text = clean, createdAt = nowMillis()))
+            dao.insertMessage(
+                task3.db.RagMessageEntity(
+                    chatId = chatId,
+                    role = "USER",
+                    text = clean,
+                    createdAt = nowMillis(),
+                ),
+            )
+            autoTitleIfUntitled(chatId, clean)
         }
         _llmStatus.value = EngineStatus.Generating
         try {
@@ -509,7 +626,15 @@ class RagRepository(
                 list.map { if (it.id == draftId) it.copy(text = answer) else it }
             }
             runCatching {
-                dao.insertMessage(task3.db.RagMessageEntity(role = "ASSISTANT", text = answer, createdAt = nowMillis()))
+                dao.insertMessage(
+                    task3.db.RagMessageEntity(
+                        chatId = chatId,
+                        role = "ASSISTANT",
+                        text = answer,
+                        createdAt = nowMillis(),
+                    ),
+                )
+                dao.touchChat(chatId, nowMillis())
             }
             _llmStatus.value = EngineStatus.Ready
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -523,6 +648,9 @@ class RagRepository(
                     if (it.id == draftId) it.copy(text = "Ошибка: ${e.message}") else it
                 }
             }
+        } finally {
+            // The drawer shows counts, the last message and the order by activity.
+            runCatching { refreshChats() }
         }
     }
 
@@ -531,9 +659,12 @@ class RagRepository(
         _llmStatus.value = EngineStatus.Ready
     }
 
+    /** Clears the messages of the active chat only — the other chats keep their history. */
     suspend fun clearChat() {
+        val chatId = _activeChatId.value
         _messages.value = emptyList()
-        runCatching { dao.clearMessages() }
+        runCatching { dao.clearMessagesOf(chatId) }
+        runCatching { refreshChats() }
     }
 
     /**
@@ -545,6 +676,9 @@ class RagRepository(
      */
     companion object {
         const val MIN_SCORE: Float = 0.55f
+
+        /** Long enough to be recognizable, short enough for a drawer row. */
+        const val TITLE_MAX: Int = 60
     }
 
     private val _lastMaxScore = MutableStateFlow<Float?>(null)

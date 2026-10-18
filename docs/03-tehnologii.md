@@ -130,7 +130,7 @@ Kotlin Toolchain (дефолты `$kotlin.version`, `$compose.version`) и в ca
 
 ## Room KMP
 
-* Базы: `chat.db` (`ChatDatabase`, v2) и `rag.db` (`RagDatabase`, v1).
+* Базы: `chat.db` (`ChatDatabase`, v2) и `rag.db` (`RagDatabase`, v2).
 * Драйвер — `androidx.sqlite.driver.bundled.BundledSQLiteDriver`: нативная SQLite,
   без `SupportSQLite` на Android.
 * Схемы генерируются **KSP** (`androidx.room:room-compiler`, KSP 2.3.11).

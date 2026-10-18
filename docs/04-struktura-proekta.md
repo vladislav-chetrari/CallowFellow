@@ -29,7 +29,7 @@ CallowFellow/
 │   │       ├── db/              # RagDatabase (Room), RagDao, entities
 │   │       ├── llama/           # EmbedBridge, createEmbedBridge()
 │   │       ├── presentation/    # Task3ViewModel, Task3UiState, Task3Intent, Tab
-│   │       ├── ui/              # App, Root, ChatTab, DocsTab, SettingsTab, LlmScreen, EmbedScreen
+│   │       ├── ui/              # App, Root, ChatTab, ChatDrawer, DocsTab, SettingsTab, LlmScreen, EmbedScreen
 │   │       └── di/              # Task3Container
 │   ├── src@android/             # actual для Android
 │   │   ├── task2/data/PlatformActual.kt
@@ -46,6 +46,8 @@ CallowFellow/
 │   └── test@jvm/                # JVM-тесты (нужен java.io и реальная SQLite)
 │       ├── task2/DbTest.kt
 │       ├── task2/llama/FakeLlamaBridge.kt
+│       ├── task3/ChatsTest.kt
+│       ├── task3/ChatDrawerTest.kt
 │       ├── task3/DeleteDeselectTest.kt
 │       ├── task3/ModelFileValidationTest.kt
 │       ├── task3/QueryRouterTest.kt

@@ -78,6 +78,31 @@ enum class GenPreset(
     }
 }
 
+/** One row of the chat drawer: the conversation plus what the list needs to show it. */
+data class ChatSummary(
+    val id: Long,
+    val title: String,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val messageCount: Int,
+    val lastText: String? = null,
+) {
+    /** Single-line preview for the drawer item. */
+    val preview: String
+        get() = lastText?.replace(WHITESPACE, " ")?.trim()?.take(80).orEmpty()
+
+    val subtitle: String
+        get() = when (messageCount) {
+            0 -> "Пустой чат"
+            1 -> "1 сообщение"
+            else -> "$messageCount сообщений"
+        }
+
+    private companion object {
+        val WHITESPACE = Regex("\\s+")
+    }
+}
+
 /** Found chunk + cosine similarity. */
 data class ScoredChunk(
     val title: String,

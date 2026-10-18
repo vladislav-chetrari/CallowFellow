@@ -16,6 +16,7 @@ import task3.data.EmbedModel
 import task3.data.EmbedState
 import task3.data.DownloadProgress
 import task3.data.RagRepository
+import task3.domain.ChatSummary
 import task3.domain.DocInfo
 import task3.domain.GenPreset
 import task3.domain.LlmChoice
@@ -26,6 +27,12 @@ data class Task3UiState(
     val tab: Tab = Tab.CHAT,
     // chat
     val messages: List<ChatMessage> = emptyList(),
+    val chats: List<ChatSummary> = emptyList(),
+    val activeChatId: Long = 0L,
+    val drawerOpen: Boolean = false,
+    val renamingChatId: Long? = null,
+    val renameInput: String = "",
+    val deletingChatId: Long? = null,
     val llmStatus: EngineStatus = EngineStatus.Idle,
     val input: String = "",
     val llmChoice: LlmChoice? = null,
@@ -59,7 +66,11 @@ data class Task3UiState(
     // retrieval diagnostics for video: max cosine of the last query
     val lastScore: Float? = null,
     val showPresetDialog: Boolean = false,
-)
+) {
+    /** Header of the chat tab: title of the active chat. */
+    val chatTitle: String
+        get() = chats.firstOrNull { it.id == activeChatId }?.title?.ifBlank { "Новый чат" } ?: "Чат"
+}
 
 sealed interface Task3Intent {
     data class TabSelected(val tab: Tab) : Task3Intent
@@ -70,6 +81,19 @@ sealed interface Task3Intent {
     data object ClearDismissed : Task3Intent
     data object ClearConfirmed : Task3Intent
     data object Retry : Task3Intent
+    // chat drawer
+    data object DrawerOpen : Task3Intent
+    data object DrawerClosed : Task3Intent
+    data object DrawerToggled : Task3Intent
+    data object ChatCreateRequested : Task3Intent
+    data class ChatSelected(val id: Long) : Task3Intent
+    data class ChatRenameRequested(val id: Long) : Task3Intent
+    data class ChatRenameInputChanged(val text: String) : Task3Intent
+    data object ChatRenameConfirmed : Task3Intent
+    data object ChatRenameDismissed : Task3Intent
+    data class ChatDeleteRequested(val id: Long) : Task3Intent
+    data object ChatDeleteDismissed : Task3Intent
+    data object ChatDeleteConfirmed : Task3Intent
     // documents
     data object WikiOpen : Task3Intent
     data object WikiDismissed : Task3Intent
@@ -117,7 +141,7 @@ class Task3ViewModel(
                 repo.messages, repo.llmStatus, repo.llmChoice,
                 repo.docs, repo.indexProgress, repo.embedId, repo.embedStatus,
                 repo.downloadedLlm, repo.downloadedEmbed, repo.downloading, repo.deepSeekKey,
-                repo.preset, repo.lastMaxScore,
+                repo.preset, repo.lastMaxScore, repo.chats, repo.activeChatId,
             ) { args ->
                 @Suppress("UNCHECKED_CAST")
                 val messages = args[0] as List<ChatMessage>
@@ -133,14 +157,18 @@ class Task3ViewModel(
                 val key = args[10] as String
                 val preset = args[11] as GenPreset
                 val lastScore = args[12] as Float?
+                val chats = args[13] as List<ChatSummary>
+                val activeChatId = args[14] as Long
                 collect(
-                    messages, llmStatus, choice, docs, progress,
+                    messages, chats, activeChatId, llmStatus, choice, docs, progress,
                     embedId, embedStatus, dlLlm, dlEmbed, downloading, key, preset, lastScore,
                 )
             }.collect { partial ->
                 val cur = _ui.value
                 _ui.value = cur.copy(
                     messages = partial.messages,
+                    chats = partial.chats,
+                    activeChatId = partial.activeChatId,
                     llmStatus = partial.llmStatus,
                     llmChoice = partial.choice,
                     llmLabel = partial.label,
@@ -165,6 +193,8 @@ class Task3ViewModel(
 
     private data class Partial(
         val messages: List<ChatMessage>,
+        val chats: List<ChatSummary>,
+        val activeChatId: Long,
         val llmStatus: EngineStatus,
         val choice: LlmChoice?,
         val label: String,
@@ -186,6 +216,8 @@ class Task3ViewModel(
 
     private fun collect(
         messages: List<ChatMessage>,
+        chats: List<ChatSummary>,
+        activeChatId: Long,
         llmStatus: EngineStatus,
         choice: LlmChoice?,
         docs: List<DocInfo>,
@@ -223,7 +255,7 @@ class Task3ViewModel(
             else -> ""
         }
         return Partial(
-            messages, llmStatus, choice, label, canChat, hint,
+            messages, chats, activeChatId, llmStatus, choice, label, canChat, hint,
             docs, progress, canAdd, docsHint, embedId, embedStatus,
             dlLlm, dlEmbed, downloading, key, preset, lastScore,
         )
@@ -231,7 +263,9 @@ class Task3ViewModel(
 
     fun sendIntent(intent: Task3Intent) {
         when (intent) {
-            is Task3Intent.TabSelected -> _ui.value = _ui.value.copy(tab = intent.tab)
+            is Task3Intent.TabSelected ->
+                // The drawer only belongs to the chat tab.
+                _ui.value = _ui.value.copy(tab = intent.tab, drawerOpen = false)
             is Task3Intent.InputChanged -> _ui.value = _ui.value.copy(input = intent.text)
             Task3Intent.Send -> {
                 val text = _ui.value.input
@@ -253,6 +287,52 @@ class Task3ViewModel(
             Task3Intent.Retry -> scope.launch {
                 val c = _ui.value.llmChoice
                 if (c is LlmChoice.Local) runCatching { repo.ensureLlmLoaded(ModelCatalog.resolve(c.id)) }
+            }
+            // chat drawer
+            Task3Intent.DrawerOpen -> _ui.value = _ui.value.copy(drawerOpen = true)
+            Task3Intent.DrawerClosed -> _ui.value = _ui.value.copy(drawerOpen = false)
+            Task3Intent.DrawerToggled -> _ui.value = _ui.value.copy(drawerOpen = !_ui.value.drawerOpen)
+            Task3Intent.ChatCreateRequested -> {
+                _ui.value = _ui.value.copy(drawerOpen = false)
+                scope.launch { repo.createChat() }
+            }
+            is Task3Intent.ChatSelected -> {
+                if (intent.id == _ui.value.activeChatId) {
+                    _ui.value = _ui.value.copy(drawerOpen = false)
+                    return
+                }
+                _ui.value = _ui.value.copy(drawerOpen = false)
+                job?.cancel()
+                scope.launch { repo.selectChat(intent.id) }
+            }
+            is Task3Intent.ChatRenameRequested -> {
+                val title = _ui.value.chats.firstOrNull { it.id == intent.id }?.title.orEmpty()
+                _ui.value = _ui.value.copy(
+                    renamingChatId = intent.id,
+                    renameInput = title,
+                    deletingChatId = null,
+                )
+            }
+            is Task3Intent.ChatRenameInputChanged ->
+                _ui.value = _ui.value.copy(renameInput = intent.text)
+            Task3Intent.ChatRenameConfirmed -> {
+                val id = _ui.value.renamingChatId ?: return
+                val title = _ui.value.renameInput
+                _ui.value = _ui.value.copy(renamingChatId = null, renameInput = "")
+                scope.launch { repo.renameChat(id, title) }
+            }
+            Task3Intent.ChatRenameDismissed ->
+                _ui.value = _ui.value.copy(renamingChatId = null, renameInput = "")
+            is Task3Intent.ChatDeleteRequested -> _ui.value = _ui.value.copy(
+                deletingChatId = intent.id,
+                renamingChatId = null,
+            )
+            Task3Intent.ChatDeleteDismissed -> _ui.value = _ui.value.copy(deletingChatId = null)
+            Task3Intent.ChatDeleteConfirmed -> {
+                val id = _ui.value.deletingChatId ?: return
+                _ui.value = _ui.value.copy(deletingChatId = null, drawerOpen = false)
+                job?.cancel()
+                scope.launch { repo.deleteChat(id) }
             }
             // documents
             Task3Intent.WikiOpen -> {

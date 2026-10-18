@@ -11,10 +11,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -52,10 +51,23 @@ fun ChatTab(ui: Task3UiState, send: (Task3Intent) -> Unit, modifier: Modifier = 
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            IconButton(
+                onClick = { send(Task3Intent.DrawerToggled) },
+                // Switching mid-answer would send the reply to another chat.
+                enabled = ui.llmStatus !is EngineStatus.Generating,
+            ) {
+                Icon(Icons.Filled.Menu, contentDescription = "Список чатов")
+            }
             Column(Modifier.weight(1f).padding(top = 6.dp)) {
                 Text(
-                    ui.llmLabel,
+                    ui.chatTitle,
                     style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                )
+                Text(
+                    ui.llmLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
                 )
                 Text(
@@ -135,7 +147,12 @@ fun ChatTab(ui: Task3UiState, send: (Task3Intent) -> Unit, modifier: Modifier = 
         AlertDialog(
             onDismissRequest = { send(Task3Intent.ClearDismissed) },
             title = { Text("Очистить чат?") },
-            text = { Text("История переписки будет удалена без возможности восстановления.") },
+            text = {
+                Text(
+                    "История чата «${ui.chatTitle}» будет удалена без возможности " +
+                        "восстановления. Остальные чаты не пострадают.",
+                )
+            },
             confirmButton = {
                 TextButton(onClick = { send(Task3Intent.ClearConfirmed) }) { Text("Очистить") }
             },

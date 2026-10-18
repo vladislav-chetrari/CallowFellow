@@ -29,6 +29,10 @@ fun main() {
                 if (it.key == Key.Escape) {
                     val ui = container.viewModel.ui.value
                     when {
+                        ui.drawerOpen -> {
+                            container.viewModel.sendIntent(Task3Intent.DrawerClosed)
+                            true
+                        }
                         ui.showLlmScreen -> {
                             container.viewModel.sendIntent(Task3Intent.LlmScreenClosed)
                             true
