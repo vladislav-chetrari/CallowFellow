@@ -25,8 +25,36 @@ object ModelCatalog {
         sizeMb = 331,
         defaultCtx = 1280,
     )
+    // Light tier: fast on low-RAM devices (fills the gap under 1 GB).
+    val LFM25_12B_INT4 = AiModel(
+        id = "lfm25-1.2b-int4",
+        label = "LFM2.5 1.2B",
+        fileName = "LFM2.5-1.2B-Instruct_int4.litertlm",
+        downloadUrl = "https://huggingface.co/litert-community/LFM2.5-1.2B-Instruct/resolve/main/LFM2.5-1.2B-Instruct_int4.litertlm",
+        sizeMb = 736,
+        defaultCtx = 4096,
+    )
+    // Sweet spot: Google's mobile-first model, best-supported on Android (up to 32k ctx).
+    val GEMMA4_E2B = AiModel(
+        id = "gemma4-e2b",
+        label = "Gemma 4 E2B",
+        fileName = "gemma-4-E2B-it.litertlm",
+        downloadUrl = "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm",
+        sizeMb = 2588,
+        defaultCtx = 4096,
+    )
+    // Quality tier: strong reasoning, for 8+ GB devices (bundle ctx is 2048).
+    val QWEN3_4B_INT4 = AiModel(
+        id = "qwen3-4b-int4",
+        label = "Qwen3 4B",
+        fileName = "qwen3_4b_mixed_int4.litertlm",
+        downloadUrl = "https://huggingface.co/litert-community/Qwen3-4B/resolve/main/qwen3_4b_mixed_int4.litertlm",
+        sizeMb = 2659,
+        defaultCtx = 2048,
+    )
 
-    val ALL: List<AiModel> = listOf(QWEN25_15B_Q8, QWEN3_06B_INT4)
+    val ALL: List<AiModel> =
+        listOf(QWEN3_06B_INT4, LFM25_12B_INT4, QWEN25_15B_Q8, GEMMA4_E2B, QWEN3_4B_INT4)
     val DEFAULT: AiModel = QWEN25_15B_Q8
 
     fun resolve(id: String?): AiModel = ALL.firstOrNull { it.id == id } ?: DEFAULT

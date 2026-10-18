@@ -13,7 +13,7 @@ class LogicTest {
     @Test
     fun defaultModelIsQwen2515b() {
         assertEquals("qwen25-1.5b-q8", ModelCatalog.DEFAULT.id)
-        assertEquals(2, ModelCatalog.ALL.size)
+        assertEquals(5, ModelCatalog.ALL.size)
     }
 
     @Test
