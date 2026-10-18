@@ -93,6 +93,9 @@ The version is shown in the Settings screen footer (`SettingsTab`).
 
 ### Changelog
 
+- **unreleased** — several chats: chat list in a M3 drawer (hamburger in the chat
+  header) with create / switch / rename / delete; `chats` table + `messages.chatId`
+  in `rag.db` (schema v2, migration keeps the old history as chat #1).
 - **0.1.0** — port from `AI-Advent-Challenge/Week 5`:
   renamed to CallowFellow (`com.callowfellow`, label, window title),
   removed Task artifacts (`Task 1/`, `Task 5/`, `*.mp4`, `Task *.md`),

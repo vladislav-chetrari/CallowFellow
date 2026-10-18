@@ -81,7 +81,7 @@ RAG-приложение: настройки моделей, документы,
 |---|---|
 | `task3.domain` | `LlmChoice`, `GenPreset`, `DocInfo`, `ScoredChunk`, `AppVersion` |
 | `task3.data` | `RagRepository` (SSOT), `EmbedCatalog`, `Chunkers`, `EmbedMath`, `QueryRouter`, `WikiLoader`, `DeepSeekClient`, `Files`, `Http` |
-| `task3.db` | `RagDatabase`, `RagDao`, `ChunkEntity`, `DocumentEntity`, `RagMessageEntity`, `SettingEntity` |
+| `task3.db` | `RagDatabase`, `RagDao`, `ChunkEntity`, `DocumentEntity`, `ChatEntity`, `RagMessageEntity`, `SettingEntity` |
 | `task3.llama` | `EmbedBridge`, `createEmbedBridge()` |
 | `task3.presentation` | `Task3ViewModel`, `Task3UiState`, `Task3Intent`, `Tab` |
 | `task3.ui` | `App`, `Root`, `ChatTab`, `DocsTab`, `SettingsTab`, `LlmScreen`, `EmbedScreen` |
@@ -111,14 +111,18 @@ RagRepository.send(prompt)
    ├─ PromptBuilder.cleanReply(text)
    └─ + refsBlock(context)  →  «Источники:\n[1] …»
    ▼
-_messages: MutableStateFlow<List<ChatMessage>>    ← SSOT
-   │  write-through в rag.db (insertMessage)
+_messages: MutableStateFlow<List<ChatMessage>>    ← SSOT активного чата
+   │  write-through в rag.db (insertMessage + chatId активного чата)
    ▼
-Task3ViewModel: combine(13 потоков) → Task3UiState
+Task3ViewModel: combine(15 потоков) → Task3UiState
    │  collectAsState()
    ▼
 ChatTab (Compose) — перерисовка списка и статуса
 ```
+
+Параллельно тот же ViewModel получает `chats` и `activeChatId`: список чатов
+(`ChatSummary`: заголовок, число сообщений, последнее сообщение) идёт в
+`ModalNavigationDrawer` в [`Root.kt`](../shared/src/task3/ui/Root.kt).
 
 Нативная генерация стримит дельты; в `answerLocal` они накапливаются в `acc`,
 а в UI попадают одним куском после завершения (для RAG-режима это осознанное упрощение:
@@ -158,13 +162,20 @@ RagRepository.addWikiDoc(input)
 
 | Репозиторий | SSOT-потоки |
 |---|---|
-| `RagRepository` | `llmChoice`, `embedId`, `deepSeekKey`, `preset`, `llmStatus`, `embedStatus`, `downloading`, `downloadedLlm`, `downloadedEmbed`, `docs`, `indexProgress`, `messages`, `lastMaxScore` |
+| `RagRepository` | `llmChoice`, `embedId`, `deepSeekKey`, `preset`, `llmStatus`, `embedStatus`, `downloading`, `downloadedLlm`, `downloadedEmbed`, `docs`, `indexProgress`, `messages`, `chats`, `activeChatId`, `lastMaxScore` |
 | `ChatRepositoryImpl` | `messages`, `status` |
 
 Инварианты, которые SSOT поддерживает:
 
 * История читается из БД **один раз** при старте (`historyLoaded`), дальше только
-  write-through в `_messages` и в Room.
+  write-through в `_messages` и в Room. Исключение — смена чата: тогда перечитываются
+  сообщения нового чата (`messagesOf(chatId)`).
+* Список чатов **никогда не пуст**: первый запуск и удаление последнего чата создают
+  новый пустой (`initChats`, `deleteChat`).
+* `activeChatId` публикуется **раньше** списка `chats`: иначе список на мгновение
+  появляется без выделения.
+* Переключение и удаление чатов запрещены во время `EngineStatus.Generating` —
+  иначе ответ попал бы в чужой чат.
 * Каталог скачанных файлов — результат `platformFileExists` по каталогу, а не флаг в БД.
 * Удаление выбранной модели **снимает выбор** (`deleteLlm` / `deleteEmbed`), иначе UI
   зависает на несуществующем файле.

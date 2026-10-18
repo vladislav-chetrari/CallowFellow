@@ -33,6 +33,7 @@ class MainActivity : ComponentActivity() {
             override fun handleOnBackPressed() {
                 val ui = container.viewModel.ui.value
                 when {
+                    ui.drawerOpen -> container.viewModel.sendIntent(task3.presentation.Task3Intent.DrawerClosed)
                     ui.showLlmScreen -> container.viewModel.sendIntent(task3.presentation.Task3Intent.LlmScreenClosed)
                     ui.showEmbedScreen -> container.viewModel.sendIntent(task3.presentation.Task3Intent.EmbedScreenClosed)
                     else -> {
