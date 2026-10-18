@@ -58,7 +58,7 @@ Android-тестов (instrumented, на устройстве) в проекте
 ### `LogicTest` (12) — чистые функции
 
 **Каталог моделей**
-* `defaultModelIsQwen2515b` — по умолчанию `qwen25-1.5b-q8`, в каталоге 2 модели.
+* `defaultModelIsQwen2515b` — по умолчанию `qwen25-1.5b-q8`, в каталоге 5 моделей.
 
 **Промпты**
 * `chatPromptHasNoChatMl` — ни system, ни user не содержат `<|im_start|>`: шаблон

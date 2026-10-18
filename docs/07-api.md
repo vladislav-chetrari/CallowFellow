@@ -15,6 +15,9 @@
 |---|---|
 | Qwen2.5-1.5B-Instruct Q8 | `https://huggingface.co/litert-community/Qwen2.5-1.5B-Instruct/resolve/main/Qwen2.5-1.5B-Instruct_multi-prefill-seq_q8_ekv4096.litertlm` |
 | Qwen3-0.6B int4 | `https://huggingface.co/litert-community/Qwen3-0.6B-int4/resolve/main/qwen3_0.6b_q4_block32_ekv1280.litertlm` |
+| LFM2.5 1.2B int4 | `https://huggingface.co/litert-community/LFM2.5-1.2B-Instruct/resolve/main/LFM2.5-1.2B-Instruct_int4.litertlm` |
+| Gemma 4 E2B | `https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm` |
+| Qwen3 4B int4 | `https://huggingface.co/litert-community/Qwen3-4B/resolve/main/qwen3_4b_mixed_int4.litertlm` |
 | EmbeddingGemma 270M | `https://huggingface.co/litert-community/embeddinggemma-2-text-270m-litert-lm/resolve/main/embeddinggemma-2-text-270m.litertlm` |
 
 URL **захардкожены** в `ModelCatalog` / `EmbedCatalog` — произвольные ссылки
@@ -303,7 +306,12 @@ expect fun deleteFile(path: String)
 |---|---|---|---|---|
 | `qwen25-1.5b-q8` | Qwen2.5 1.5B Q8 | `Qwen2.5-1.5B-Instruct_multi-prefill-seq_q8_ekv4096.litertlm` | 1524 | 4096 |
 | `qwen3-0.6b-int4` | Qwen3 0.6B | `qwen3_0.6b_q4_block32_ekv1280.litertlm` | 331 | 1280 |
+| `lfm25-1.2b-int4` | LFM2.5 1.2B | `LFM2.5-1.2B-Instruct_int4.litertlm` | 736 | 4096 |
+| `gemma4-e2b` | Gemma 4 E2B | `gemma-4-E2B-it.litertlm` | 2588 | 4096 |
+| `qwen3-4b-int4` | Qwen3 4B | `qwen3_4b_mixed_int4.litertlm` | 2659 | 2048 |
 
+`ModelCatalog.ALL` перечисляет модели в порядке `qwen3-0.6b-int4`, `lfm25-1.2b-int4`,
+`qwen25-1.5b-q8`, `gemma4-e2b`, `qwen3-4b-int4`; `DEFAULT` — `qwen25-1.5b-q8`.
 `ModelCatalog.resolve(id)` возвращает `DEFAULT` для неизвестного/пустого id.
 
 ### Каталог эмбеддингов (`task3.data.EmbedCatalog`)
